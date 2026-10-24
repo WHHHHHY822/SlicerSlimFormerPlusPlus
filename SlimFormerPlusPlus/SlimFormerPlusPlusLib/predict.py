@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import itertools
 import json
 import sys
 import time
@@ -64,13 +65,14 @@ def select_device(name: str):
 
 
 def logits_to_labels(predicted_logits, plans_manager, configuration_manager, label_manager, properties):
-    """nnU-Net's ``convert_predicted_logits_to_segmentation_with_correct_shape`` with less memory.
+    """nnU-Net's ``convert_predicted_logits_to_segmentation_with_correct_shape`` with less memory and time.
 
     nnU-Net converts all class logits to float64 at once before resampling them to
-    the original grid (16 classes of a typical CT: about 15 GB). Resampling works
-    channel by channel, so here each class is resampled with the same function and
-    kept only as a running maximum; ``>`` keeps the first maximum, like the
-    ``argmax`` nnU-Net applies afterwards. The labels are identical.
+    the original grid (16 classes of a typical CT: about 15 GB) and then takes the
+    argmax. Here the labels are the same, but only the voxels next to a label
+    boundary are interpolated (``band_labels``); for resampling settings that
+    function does not handle, each class is resampled with nnU-Net's function and
+    kept only as a running maximum (``resampled_labels``).
     """
     from acvl_utils.cropping_and_padding.bounding_boxes import insert_crop_into_image
     if label_manager.has_regions:
@@ -79,6 +81,16 @@ def logits_to_labels(predicted_logits, plans_manager, configuration_manager, lab
     shape = properties['shape_after_cropping_and_before_resampling']
     current_spacing = configuration_manager.spacing if len(configuration_manager.spacing) == len(shape) \
         else [spacing[0], *configuration_manager.spacing]
+    labels = band_labels(predicted_logits, shape, current_spacing, spacing, configuration_manager)
+    if labels is None:
+        labels = resampled_labels(predicted_logits, shape, current_spacing, spacing, configuration_manager)
+    result = np.zeros(properties['shape_before_cropping'], dtype=np.uint8)
+    result = insert_crop_into_image(result, labels, properties['bbox_used_for_cropping'])
+    return result.transpose(plans_manager.transpose_backward)
+
+
+def resampled_labels(predicted_logits, shape, current_spacing, spacing, configuration_manager):
+    """Resample each class with nnU-Net's function; ``>`` keeps the first maximum, like ``argmax``."""
     best = labels = None
     for c in range(predicted_logits.shape[0]):
         channel = configuration_manager.resampling_fn_probabilities(predicted_logits[c:c + 1], shape,
@@ -91,12 +103,75 @@ def logits_to_labels(predicted_logits, plans_manager, configuration_manager, lab
             best[better] = channel[better]
             labels[better] = c
         del channel
-    result = np.zeros(properties['shape_before_cropping'], dtype=np.uint8)
-    result = insert_crop_into_image(result, labels, properties['bbox_used_for_cropping'])
-    return result.transpose(plans_manager.transpose_backward)
+    return labels
 
 
-def make_predictor(model_dir, device, tta=False, step_size=0.5, report=print):
+def band_labels(predicted_logits, shape, current_spacing, spacing, configuration_manager):
+    """The labels of ``resampled_labels``, interpolating only next to label boundaries.
+
+    nnU-Net's default resampling of the logits (``resample_data_or_seg_to_shape``,
+    order 1: ``scipy.ndimage.zoom(grid_mode=True)`` through scikit-image, done in plane
+    and with order 0 along the low-resolution axis of an anisotropic grid) gives each
+    output voxel a weighted mean of the network voxels around it. Where all of them
+    have the same argmax, so does the mean, and the label is copied. The other voxels
+    (typically 1-3 % of the box) are interpolated with the same kernel, coordinates
+    and float precision. Returns None for other resampling settings.
+    """
+    config = configuration_manager.configuration
+    kwargs = config.get('resampling_fn_probabilities_kwargs', {})
+    if (config.get('resampling_fn_probabilities') != 'resample_data_or_seg_to_shape' or len(shape) != 3
+            or kwargs.get('order') != 1 or kwargs.get('order_z') != 0 or kwargs.get('is_seg')
+            or kwargs.get('force_separate_z') is not None):
+        return None
+    try:
+        from nnunetv2.preprocessing.resampling.default_resampling import determine_do_sep_z_and_axis
+    except ImportError:  # nnU-Net versions before this helper existed
+        return None
+    from scipy import ndimage
+    logits = predicted_logits.numpy() if hasattr(predicted_logits, 'numpy') else np.asarray(predicted_logits)
+    grid, shape = logits.shape[1:], tuple(int(s) for s in shape)
+    coarse = logits.argmax(0).astype(np.uint8)
+    if grid == shape:
+        return coarse
+    separate, axis = determine_do_sep_z_and_axis(None, current_spacing, spacing)
+    nearest_axis = axis if separate else None
+    coords, lower = [], []
+    for a in range(3):
+        x = (np.arange(shape[a]) + 0.5) * (grid[a] / shape[a]) - 0.5   # source coordinate of each output voxel
+        if a == nearest_axis:  # order 0, with scipy's own rounding
+            index = ndimage.map_coordinates(np.arange(grid[a], dtype=float), x[None], order=0,
+                                            mode='nearest').astype(np.intp)
+            x = index.astype(float)
+        else:
+            index = np.clip(np.floor(x).astype(np.intp), 0, grid[a] - 1)
+        coords.append(x)
+        lower.append(index)
+    # A network voxel is uniform if it and its +1 neighbours along the interpolated axes
+    # have one label; each output voxel is interpolated from the cell of its lower corner.
+    steps = [(0, 1) if a != nearest_axis else (0,) for a in range(3)]
+    padded = np.pad(coarse, [(0, len(s) - 1) for s in steps], mode='edge')
+    uniform = np.ones(grid, dtype=bool)
+    for offset in itertools.product(*steps):
+        if any(offset):
+            uniform &= padded[tuple(slice(o, o + n) for o, n in zip(offset, grid))] == coarse
+    labels = coarse.take(lower[0], 0).take(lower[1], 1).take(lower[2], 2)
+    band = np.nonzero(~uniform.take(lower[0], 0).take(lower[1], 1).take(lower[2], 2))
+    points = np.stack([coords[a][band[a]] for a in range(3)])
+    best = winner = None
+    for c in range(logits.shape[0]):
+        value = ndimage.map_coordinates(logits[c].astype(np.float64), points, order=1,
+                                        mode='nearest').astype(logits.dtype)
+        if best is None:
+            best, winner = value, np.zeros(value.shape, dtype=np.uint8)
+        else:
+            better = value > best
+            best[better] = value[better]
+            winner[better] = c
+    labels[band] = winner
+    return labels
+
+
+def make_predictor(model_dir, device, tta=False, step_size=0.8, report=print, checkpoint_name=CHECKPOINT):
     """nnUNetPredictor initialised with the SlimFormer++ network and weights in ``model_dir``."""
     import torch
     from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
@@ -143,7 +218,7 @@ def make_predictor(model_dir, device, tta=False, step_size=0.5, report=print):
     model_dir = Path(model_dir)
     plans = json.loads((model_dir / 'plans.json').read_text())
     dataset_json = json.loads((model_dir / 'dataset.json').read_text())
-    checkpoint = torch.load(model_dir / 'fold_0' / CHECKPOINT, map_location='cpu', weights_only=True)
+    checkpoint = torch.load(model_dir / 'fold_0' / checkpoint_name, map_location='cpu', weights_only=True)
     network = build_network(plans, dataset_json)
     network.load_state_dict(checkpoint['network_weights'], strict=True)
     plans_manager = PlansManager(plans)
@@ -223,9 +298,10 @@ def main(argv=None):
     p.add_argument('--model-dir', required=True)
     p.add_argument('--input', required=True)
     p.add_argument('--output', required=True)
+    p.add_argument('--checkpoint', default=CHECKPOINT, help='checkpoint file name in MODEL_DIR/fold_0')
     p.add_argument('--device', default='auto', choices=('auto', 'cuda', 'cpu', 'mps'))
-    p.add_argument('--tta', action='store_true', help='mirroring test-time augmentation (8x slower)')
-    p.add_argument('--step-size', type=float, default=0.5)
+    p.add_argument('--step-size', type=float, default=0.8,
+                   help='sliding-window step as a fraction of the patch size (default 0.8: 20%% overlap)')
     p.add_argument('--threads', type=int, default=0, help='CPU threads (0: PyTorch default)')
     p.add_argument('--no-crop-body', dest='crop_body', action='store_false',
                    help='segment the whole field of view instead of the body bounding box')
@@ -240,7 +316,8 @@ def main(argv=None):
     data = np.load(a.input)
     image, ijk_to_ras = data['image'], data['ijk_to_ras']
     report = lambda s: print(s, flush=True)  # noqa: E731
-    predictor, _ = make_predictor(a.model_dir, device, a.tta, a.step_size, report=report)
+    predictor, _ = make_predictor(a.model_dir, device, step_size=a.step_size, report=report,
+                                  checkpoint_name=a.checkpoint)
     labels = segment(predictor, image, ijk_to_ras, crop_body=a.crop_body, report=report)
     np.savez_compressed(a.output, labels=labels)
     print(f'Done in {time.time() - start:.1f} s', flush=True)

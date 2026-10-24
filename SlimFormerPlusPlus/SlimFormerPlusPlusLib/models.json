@@ -1,11 +1,26 @@
 {
-  "amos-ct": {
-    "title": "Abdominal organs (CT, AMOS2022)",
+  "amos-ct-iso1p5": {
+    "mode": "Standard",
+    "title": "Abdominal organs (CT, AMOS2022), 1.5 mm",
     "version": "1",
     "modality": "CT",
-    "url": "https://github.com/WHHHHHY822/SlicerSlimFormerPlusPlus/releases/download/amos-ct-v1/SlimFormerPlusPlusAttention_AMOS2022_CT.zip",
-    "sha256": "49b4f89e1d2d7e2f4a82c97fb68d167af670699afe273c40359984c6934d4c31",
-    "description": "SlimFormer++ with window self-attention in encoder 1, fine-tuned for 100 epochs from the released SlimFormer++ AMOS2022 CT weights. 15 abdominal organs. Mean Dice 90.14 on the 100 AMOS2022 validation CT scans.",
+    "spacing_mm": 1.5,
+    "checkpoint": "checkpoint_best.pth",
+    "url": "https://github.com/WHHHHHY822/SlicerSlimFormerPlusPlus/releases/download/amos-ct-v2/SlimFormerPlusPlusAttention_AMOS2022_CT_iso1p5.zip",
+    "sha256": "51d56ad591a75406aafd1ceb04b0c1e1eaf43dca232845318a0c4c0d728d0ece",
+    "description": "SlimFormer++ with window self-attention in encoder 1 on 1.5 mm isotropic voxels (patch 128^3, level-0 kernel 3x3x3, first stride 2x2x2), fine-tuned for 100 epochs from the 2.0 x 0.68 x 0.68 mm AMOS2022 CT model. 15 abdominal organs. Mean Dice 89.28 on the 100 AMOS2022 validation CT scans without test-time augmentation.",
+    "license": "SlimFormer++ Noncommercial Research License 1.0 (noncommercial research use only)"
+  },
+  "amos-ct-iso3p0": {
+    "mode": "Fast",
+    "title": "Abdominal organs (CT, AMOS2022), 3 mm",
+    "version": "2",
+    "modality": "CT",
+    "spacing_mm": 3.0,
+    "checkpoint": "checkpoint_best.pth",
+    "url": "https://github.com/WHHHHHY822/SlicerSlimFormerPlusPlus/releases/download/amos-ct-v2/SlimFormerPlusPlusAttention_AMOS2022_CT_iso3p0_s2.zip",
+    "sha256": "883844c6f9dc77dbf0ba9706edef20bed463bc08a2f9ed5706d51a45c4acbe28",
+    "description": "SlimFormer++ with window self-attention in encoder 1 on 3 mm isotropic voxels (patch 128^3, level-0 kernel 3x3x3, first stride 2x2x2), fine-tuned for 100 epochs from the 2.0 x 0.68 x 0.68 mm AMOS2022 CT model. 15 abdominal organs. Mean Dice 84.41 on the 100 AMOS2022 validation CT scans without test-time augmentation.",
     "license": "SlimFormer++ Noncommercial Research License 1.0 (noncommercial research use only)"
   }
 }
