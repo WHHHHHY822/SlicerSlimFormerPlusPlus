@@ -6,7 +6,7 @@ organs in CT images with SlimFormer++.
 **For research use only. This is not a medical device. Do not use the results
 for diagnosis or treatment.**
 
-<!-- TODO: screenshot from a real Slicer run (Screenshots/Screenshot01.png) -->
+![SlimFormer++ segmentation of the Panoramix sample CT in 3D Slicer](Screenshots/Screenshot01.png)
 
 ## What it does
 
