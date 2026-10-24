@@ -44,10 +44,12 @@ on first use.
 
 ## Usage
 
+The extension has one module, **SlimFormer++** (category *Segmentation*): it
+segments 15 abdominal organs in a CT volume into a segmentation.
+
 1. Load an abdominal CT, or the sample **CTA abdomen (Panoramix)** from the
    Sample Data module.
-2. Open the **SlimFormer++** module (category *Segmentation*), select the CT and
-   a mode: **Standard** (most accurate) or **Fast** (quickest).
+2. Open the **SlimFormer++** module, select the CT and a mode: **Standard** (most accurate) or **Fast** (quickest).
 3. Click **Segment**. Correct the result in the Segment Editor if needed.
 
 - No internet? Download the model `.zip` from
@@ -73,7 +75,7 @@ definition (`SlimFormerPlusPlus/SlimFormerPlusPlusLib/model.py`) and the weights
 are under the [SlimFormer++ Noncommercial Research License 1.0](LICENSE-MODEL.txt)
 (noncommercial research use only). Third-party code: [NOTICE.md](NOTICE.md).
 
-## Citation
+## How to cite
 
 If you use this extension, please cite:
 
