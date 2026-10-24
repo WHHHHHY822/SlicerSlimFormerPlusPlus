@@ -526,6 +526,7 @@ class SlimFormerPlusPlusLogic(ScriptedLoadableModuleLogic):
         if not nnunetLogic.isPackageInstalledAndCompatible(Requirement(requirement)):
             missing.append("nnU-Net v2")
         if not missing:
+            self._ensurePandasMatchesNumpy()
             return
         if not slicer.util.confirmOkCancelDisplay(
                 "SlimFormer++ needs additional Python packages. Installation needs a network connection "
@@ -542,9 +543,23 @@ class SlimFormerPlusPlusLogic(ScriptedLoadableModuleLogic):
             self.log("Installing PyTorch (this may take several minutes) ...")
             if torchLogic.installTorch(askConfirmation=False, torchVersionRequirement=">=2.1.2") is None:
                 raise InstallError("Installing PyTorch failed. Use the 'PyTorch Utils' module to install it.")
+        self._ensurePandasMatchesNumpy()
         if nnunetLogic.needsRestart:
             raise InstallError("Python packages were installed. 3D Slicer must be restarted before "
                                "segmenting.", restartRequired=True)
+
+    def _ensurePandasMatchesNumpy(self):
+        """On macOS the PyTorch extension installs numpy<2 (for PyTorch 2.2), but pandas 3.1 and later need numpy 2."""
+        from importlib.metadata import PackageNotFoundError, version
+        from packaging.version import Version
+        try:
+            numpyVersion, pandasVersion = Version(version("numpy")), Version(version("pandas"))
+        except PackageNotFoundError:
+            return
+        if numpyVersion < Version("2") and pandasVersion >= Version("3.1"):
+            self.status("Installing Python packages (this may take several minutes) ...", cancellable=False)
+            self.log(f"Installing a pandas version that works with numpy {numpyVersion} ...")
+            slicer.util.pip_install("pandas<3.1")
 
     # Segmentation
 
