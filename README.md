@@ -56,22 +56,11 @@ Until the extension is listed in the Extensions Manager:
 
 The image is resampled to 0.68 × 0.68 × 2.0 mm and processed in overlapping
 64 × 192 × 160 voxel patches inside the bounding box of the body (*Crop to
-body*), so the time grows with the scanned body volume. Measured per scan as one
-complete run (Python start, model loading, inference, writing the result), without
-test-time augmentation:
-
-| Hardware | Scans | Crop to body (default) | Without cropping |
-| --- | --- | --- | --- |
-| NVIDIA GPU (data-centre GPU), PyTorch 2.6 | 100 AMOS2022 validation CTs | median 43 s (max 72 s) | median 62 s (max 108 s) |
-| NVIDIA GPU (data-centre GPU), PyTorch 2.6 | 100 AbdomenCT-1K CTs | median 35 s (max 163 s) | median 46 s (max 192 s) |
-| CPU, 8 threads (ARM server, PyTorch 2.2) | 5 AMOS2022 validation CTs | mean 13 min (11–18 min) | mean 24 min (14–38 min) |
-
-On the GPU most of the time is spent resampling on the CPU, so very large scans
-(about 1000 thin slices) take longest. Consumer GPUs are slower than the GPU above
-but still take only minutes. On macOS, 3D Slicer currently runs through Rosetta 2
-and uses the CPU, so expect tens of minutes per scan. Peak memory (RAM) was 5–8 GB
-for the AMOS2022 scans and up to 13 GB for the largest AbdomenCT-1K scans; on a GPU
-up to about 10 GB of GPU memory is used. 16 GB of RAM or more is recommended.
+body*), so the time grows with the scanned body volume. On an NVIDIA GPU most of
+the time is spent resampling on the CPU, so very large scans (about 1000 thin
+slices) take longest. On macOS, 3D Slicer currently runs through Rosetta 2 and
+uses the CPU, so expect tens of minutes per scan. 16 GB of RAM or more is
+recommended.
 
 ## Settings (Advanced section)
 
@@ -96,39 +85,11 @@ up to about 10 GB of GPU memory is used. 16 GB of RAM or more is recommended.
   6.0 M parameters. It needs only PyTorch, no custom CUDA kernels.
 - **Training:** nnU-Net v2 `3d_fullres` on AMOS2022 CT (200 training scans),
   fine-tuned for 100 epochs from the released SlimFormer++ AMOS2022 CT weights.
-- **Validation:** the 100 official AMOS2022 validation CT scans, nnU-Net's
-  validation with mirroring, Dice in %:
-
-| Structure | This model | SlimFormer++ (paper model) |
-| --- | --- | --- |
-| Spleen | 97.04 | 97.16 |
-| Right kidney | 96.62 | 96.81 |
-| Left kidney | 96.43 | 96.56 |
-| Gallbladder | 84.72 | 84.81 |
-| Esophagus | 87.68 | 88.22 |
-| Liver | 97.40 | 97.48 |
-| Stomach | 92.41 | 93.04 |
-| Aorta | 95.84 | 95.99 |
-| Inferior vena cava | 92.01 | 92.46 |
-| Pancreas | 88.74 | 88.99 |
-| Right adrenal gland | 81.42 | 81.84 |
-| Left adrenal gland | 82.25 | 82.44 |
-| Duodenum | 84.75 | 84.98 |
-| Bladder | 90.89 | 91.19 |
-| Prostate/uterus | 83.84 | 84.03 |
-| **Mean** | **90.14** | **90.40** |
-
-  The paper model uses a selective-scan (Mamba) mixer in encoder 1, which
-  needs compiled CUDA extensions and does not run on Windows, macOS or CPUs;
-  this extension uses the Mamba-free implementation instead.
 - **Pre- and post-processing:** nnU-Net v2. Before inference the image axes are
   permuted/flipped (never interpolated) to the orientation of the training
   data, and the result is mapped back to the original voxel grid. The
   conversion of the network output back to the original grid gives the same
   labels as nnU-Net but needs less memory.
-- **Limitations:** trained only on AMOS2022 abdominal CT; not
-  validated on other body regions, contrast phases or scanners outside that
-  data, on MRI, or on pathology-heavy cases. Always review the result.
 
 ## License
 
