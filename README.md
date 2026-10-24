@@ -24,15 +24,23 @@ Laptop with an Apple M5 CPU (10 threads), both tools in 3D Slicer's Python.
 
 Requires 3D Slicer 5.10 or later.
 
-1. In the Extensions Manager, install **SlimFormerPlusPlus** and restart Slicer.
-2. The first **Segment** installs PyTorch and nnU-Net into Slicer (once, a few
-   minutes) and downloads the network weights (about 22 MB per mode).
+1. Download this repository (green **Code** button → **Download ZIP**) and
+   unzip it to a folder you will keep; Slicer loads the module from there.
+2. In Slicer, open **View → Extensions Manager** and install the **PyTorch**
+   and **NNUNet** extensions.
+3. Open **Edit → Application Settings → Modules** and add the unzipped
+   `SlimFormerPlusPlus` folder (the one that contains `SlimFormerPlusPlus.py`)
+   to *Additional module paths*: click **Add**, or drag the folder onto the
+   list. Click **OK**.
+4. Restart Slicer.
 
-<!-- TODO: remove this section after the extension is in the Extensions Index -->
-Until the extension is listed in the Extensions Manager: install the
-**PyTorch** and **NNUNet** extensions, download this repository (Code →
-Download ZIP), add its `SlimFormerPlusPlus` folder under Edit → Application
-Settings → Modules → *Additional module paths*, and restart Slicer.
+The first **Segment** asks to install PyTorch and nnU-Net into Slicer; click
+**OK**. This happens once. If Slicer then asks to restart, restart it and click
+**Segment** again. The network weights (about 22 MB per mode) are downloaded
+on first use.
+
+<!-- TODO: after the extension is in the Extensions Index, replace steps 1-4 with
+"In the Extensions Manager, install SlimFormerPlusPlus and restart Slicer." -->
 
 ## Usage
 

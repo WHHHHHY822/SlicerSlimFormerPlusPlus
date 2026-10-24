@@ -76,7 +76,7 @@ class SlimFormerPlusPlus(ScriptedLoadableModule):
         self.parent.title = "SlimFormer++"
         self.parent.categories = ["Segmentation"]
         self.parent.dependencies = []
-        self.parent.contributors = ["WHHHHHY822"]
+        self.parent.contributors = ["Yang Hong (University of Exeter)"]
         self.parent.helpText = (
             "Automatic segmentation of 15 abdominal organs in CT images with SlimFormer++ "
             "(Mamba-free implementation, trained on AMOS2022 CT). "
