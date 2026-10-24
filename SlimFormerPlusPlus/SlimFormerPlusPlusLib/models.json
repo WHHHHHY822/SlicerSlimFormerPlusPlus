@@ -1,0 +1,11 @@
+{
+  "amos-ct": {
+    "title": "Abdominal organs (CT, AMOS2022)",
+    "version": "1",
+    "modality": "CT",
+    "url": "https://github.com/WHHHHHY822/SlicerSlimFormerPlusPlus/releases/download/amos-ct-v1/SlimFormerPlusPlusAttention_AMOS2022_CT.zip",
+    "sha256": "49b4f89e1d2d7e2f4a82c97fb68d167af670699afe273c40359984c6934d4c31",
+    "description": "SlimFormer++ with window self-attention in encoder 1, fine-tuned for 100 epochs from the released SlimFormer++ AMOS2022 CT weights. 15 abdominal organs. Mean Dice 90.14 on the 100 AMOS2022 validation CT scans.",
+    "license": "SlimFormer++ Noncommercial Research License 1.0 (noncommercial research use only)"
+  }
+}
