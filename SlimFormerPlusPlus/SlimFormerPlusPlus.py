@@ -28,7 +28,15 @@ DISCLAIMER = "For research use only. Not for clinical diagnosis or treatment."
 # Sliding-window step as a fraction of the patch size: 20% overlap of neighbouring patches.
 STEP_SIZE = 0.8
 
-# Display colors (Slicer GenericAnatomyColors) by label name in the model's dataset.json.
+# Segment names for label names in the model's dataset.json that are not plain English.
+DISPLAY_NAMES = {
+    "gall_bladder": "gallbladder",
+    "kidney_left": "left kidney",
+    "kidney_right": "right kidney",
+    "postcava": "inferior vena cava",
+}
+
+# Display colors (Slicer GenericAnatomyColors) by segment name.
 SEGMENT_COLORS = {
     "spleen": (157, 108, 162),
     "right kidney": (185, 102, 83),
@@ -78,10 +86,12 @@ class SlimFormerPlusPlus(ScriptedLoadableModule):
         self.parent.dependencies = []
         self.parent.contributors = ["Yang Hong (University of Exeter)"]
         self.parent.helpText = (
-            "Automatic segmentation of 15 abdominal organs in CT images with SlimFormer++ "
-            "(Mamba-free implementation, trained on AMOS2022 CT). "
+            "Automatic segmentation of 9 abdominal organs in CT images with SlimFormer++ "
+            "(Mamba-free implementation, trained on 5,195 AbdomenAtlas 1.0 CT scans): liver, spleen, left and "
+            "right kidney, gallbladder, stomach, pancreas, aorta and inferior vena cava. "
             "<b>Standard</b> mode works on 1.5 mm voxels and is the most accurate. <b>Fast</b> mode works on 3 mm "
-            "voxels; it is several times faster and less accurate, mostly on small organs. "
+            "voxels; it is several times faster and less accurate, mostly on scans that show only part of the "
+            "abdomen. Both run on the CPU; an NVIDIA GPU is used if present. "
             "The first run installs PyTorch and nnU-Net into Slicer and downloads the network weights.<br>"
             f"<b>{DISCLAIMER}</b><br>"
             'See the <a href="https://github.com/WHHHHHY822/SlicerSlimFormerPlusPlus">documentation</a>.'
@@ -89,8 +99,8 @@ class SlimFormerPlusPlus(ScriptedLoadableModule):
         self.parent.acknowledgementText = (
             "Network: SlimFormer++ (https://github.com/WHHHHHY822/SlimFormerPlusPlus). "
             "Pre- and post-processing: nnU-Net v2 (Isensee et al., Nature Methods 2021). "
-            "Training data: AMOS2022 (Ji et al., NeurIPS 2022). "
-            "Network weights: SlimFormer++ Noncommercial Research License 1.0."
+            "Training data: AbdomenAtlas 1.0 (Li et al., Medical Image Analysis 2024; Qu et al., NeurIPS 2023). "
+            "Network weights: CC BY-NC-SA 4.0; network definition: SlimFormer++ Noncommercial Research License 1.0."
         )
 
 
@@ -144,7 +154,7 @@ class SlimFormerPlusPlusWidget(ScriptedLoadableModuleWidget):
         for key, model in self.logic.models.items():
             self.modeCombo.addItem(f"{model['mode']} ({model['spacing_mm']:g} mm voxels)", key)
         self.modeCombo.setToolTip("Standard: most accurate (default). Fast: several times faster, less accurate, "
-                                  "mostly on small organs.")
+                                  "mostly on scans that show only part of the abdomen.")
         form.addRow("Mode:", self.modeCombo)
 
         self.applyButton = qt.QPushButton("Segment")
@@ -725,7 +735,7 @@ class SlimFormerPlusPlusLogic(ScriptedLoadableModuleLogic):
 
     def _importLabels(self, labels, inputVolume, segmentationNode, modelDir):
         datasetJson = json.loads((Path(modelDir) / "dataset.json").read_text())
-        names = {int(v): k for k, v in datasetJson["labels"].items() if int(v) > 0}
+        names = {int(v): DISPLAY_NAMES.get(k, k) for k, v in datasetJson["labels"].items() if int(v) > 0}
 
         colorNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode", "SlimFormerPlusPlusColors")
         colorNode.SetTypeToUser()
@@ -773,11 +783,16 @@ class SlimFormerPlusPlusTest(ScriptedLoadableModuleTest):
     def test_reorientation_round_trip(self):
         import numpy as np
         sys.path.insert(0, str(MODULE_DIR))
-        from SlimFormerPlusPlusLib.reorient import from_model_axes, to_model_axes
+        from SlimFormerPlusPlusLib.reorient import RAS_AXES, from_model_axes, model_axes_ras, to_model_axes
         array = np.arange(4 * 5 * 6, dtype=np.int16).reshape(4, 5, 6)
-        lps_like = np.diag([-0.8, -0.8, 2.5, 1.0])     # j runs posterior, as in most DICOM series
-        model, spacing, mapping = to_model_axes(array, lps_like)
+        lps_like = np.diag([-0.8, -0.8, 2.5, 1.0])     # i runs right-to-left, j posterior: most DICOM series
+        model, spacing, mapping = to_model_axes(array, lps_like)          # AMOS models: i towards the left
         self.assertEqual(mapping["flip"], (False, True, False))
+        self.assertTrue(np.array_equal(from_model_axes(model, mapping), array))
+        axes = model_axes_ras({"image_reader_writer": "NibabelIOWithReorient"})
+        self.assertTrue(np.array_equal(axes, RAS_AXES))
+        model, spacing, mapping = to_model_axes(array, lps_like, axes)    # AbdomenAtlas models: RAS
+        self.assertEqual(mapping["flip"], (True, True, False))
         self.assertTrue(np.array_equal(from_model_axes(model, mapping), array))
         self.delayDisplay("Reorientation round trip passed")
 
@@ -786,7 +801,7 @@ class SlimFormerPlusPlusTest(ScriptedLoadableModuleTest):
         self.assertEqual([m["mode"] for m in logic.models.values()], ["Standard", "Fast"])
         self.assertEqual(logic.models[logic.defaultModelKey()]["mode"], "Standard")
         for key, model in logic.models.items():
-            for field in ("url", "sha256", "checkpoint", "spacing_mm"):
+            for field in ("title", "version", "url", "sha256", "checkpoint", "spacing_mm"):
                 self.assertIn(field, model)
             self.assertTrue(str(logic.modelDir(key)).endswith(f"{key}-v{model['version']}"))
         self.delayDisplay("Model registry test passed")

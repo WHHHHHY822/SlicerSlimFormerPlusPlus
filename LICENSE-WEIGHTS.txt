@@ -1,0 +1,33 @@
+SlimFormer++ network weights for the SlimFormerPlusPlus 3D Slicer extension
+(abdominal organs in CT, trained on AbdomenAtlas 1.0)
+
+Copyright (c) 2026 WHHHHHY822
+
+The network weights that the SlimFormer++ module downloads from the
+"abdomenatlas-ct-*" releases of this repository are licensed under the
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+License (CC BY-NC-SA 4.0):
+
+    https://creativecommons.org/licenses/by-nc-sa/4.0/
+    https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode
+
+The weights were trained on the public release of AbdomenAtlas 1.0
+(AbdomenAtlas1.0Mini, 5,195 CT scans, (c) The Johns Hopkins University),
+which is licensed under CC BY-NC-SA 4.0:
+
+    https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas1.0Mini
+    https://github.com/MrGiovanni/AbdomenAtlas
+
+  Li W, et al. AbdomenAtlas: A large-scale, detailed-annotated, & multi-center
+  dataset for efficient transfer learning and open algorithmic benchmarking.
+  Medical Image Analysis 97, 103285 (2024).
+  Qu C, et al. AbdomenAtlas-8K: Annotating 8,000 CT volumes for multi-organ
+  segmentation in three weeks. NeurIPS 2023.
+
+Noncommercial use only. The weights are not a medical device and must not be
+used for clinical diagnosis or treatment. They are provided "as is", without
+warranty of any kind.
+
+The network definition (model.py) is under the SlimFormer++ Noncommercial
+Research License 1.0 (LICENSE-MODEL.txt); the Slicer module is under the
+Apache License 2.0 (LICENSE.txt). See NOTICE.md.

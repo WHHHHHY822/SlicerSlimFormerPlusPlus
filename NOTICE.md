@@ -1,14 +1,15 @@
 # Licenses and third-party notices
 
-This repository contains material under two licenses.
+This repository contains material under three licenses.
 
 | Material | License |
 | --- | --- |
 | Everything not listed below (Slicer module, installer, pre/post-processing glue, tests) | Apache License 2.0, [LICENSE.txt](LICENSE.txt) |
 | `SlimFormerPlusPlus/SlimFormerPlusPlusLib/model.py` (SlimFormer++ network definition) | SlimFormer++ Noncommercial Research License 1.0, [LICENSE-MODEL.txt](LICENSE-MODEL.txt) |
-| Network weights downloaded by the module | SlimFormer++ Noncommercial Research License 1.0, [LICENSE-MODEL.txt](LICENSE-MODEL.txt) |
+| Network weights downloaded by the module (releases `abdomenatlas-ct-*`) | CC BY-NC-SA 4.0, [LICENSE-WEIGHTS.txt](LICENSE-WEIGHTS.txt) |
 
-The network and its weights may be used for noncommercial research only.
+The network definition may be used for noncommercial research only; the weights for noncommercial purposes only
+(CC BY-NC-SA 4.0).
 The module is not a medical device and must not be used for clinical diagnosis
 or treatment.
 
@@ -33,5 +34,9 @@ At run time the module uses, without redistributing them,
 [einops](https://github.com/arogozhnikov/einops) (MIT), installed through the
 3D Slicer PyTorch and NNUNet extensions.
 
-The network weights were trained on [AMOS2022](https://zenodo.org/records/7262581)
-(Ji et al., NeurIPS 2022 Datasets and Benchmarks).
+The network weights were trained on the public release of
+[AbdomenAtlas 1.0](https://github.com/MrGiovanni/AbdomenAtlas) (AbdomenAtlas1.0Mini, 5,195 CT scans,
+© The Johns Hopkins University, [CC BY-NC-SA 4.0](https://huggingface.co/datasets/AbdomenAtlas/AbdomenAtlas1.0Mini);
+Li et al., Medical Image Analysis 2024; Qu et al., NeurIPS 2023), and are therefore shared under the same
+license. Earlier releases of this module used weights trained on [AMOS2022](https://zenodo.org/records/7262581)
+(release `amos-ct-v2`, SlimFormer++ Noncommercial Research License 1.0).

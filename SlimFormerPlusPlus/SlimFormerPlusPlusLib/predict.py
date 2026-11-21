@@ -28,9 +28,9 @@ import numpy as np
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from SlimFormerPlusPlusLib.reorient import from_model_axes, to_model_axes
+    from SlimFormerPlusPlusLib.reorient import from_model_axes, model_axes_ras, to_model_axes
 else:
-    from .reorient import from_model_axes, to_model_axes
+    from .reorient import from_model_axes, model_axes_ras, to_model_axes
 
 CONFIGURATION = '3d_fullres'
 CHECKPOINT = 'checkpoint_final.pth'
@@ -221,6 +221,14 @@ def make_predictor(model_dir, device, tta=False, step_size=0.8, report=print, ch
     checkpoint = torch.load(model_dir / 'fold_0' / checkpoint_name, map_location='cpu', weights_only=True)
     network = build_network(plans, dataset_json)
     network.load_state_dict(checkpoint['network_weights'], strict=True)
+    # Per-image z-score: segment() normalises with the statistics of the whole image, as in training,
+    # so nnU-Net must not normalise the body crop again with the crop's own statistics.
+    config = plans['configurations'][CONFIGURATION]
+    zscore = config['normalization_schemes'] == ['ZScoreNormalization']
+    if zscore:
+        if any(config.get('use_mask_for_norm', [False])):
+            raise NotImplementedError('z-score normalisation inside a mask is not supported')
+        config['normalization_schemes'] = ['NoNormalization']
     plans_manager = PlansManager(plans)
     with contextlib.redirect_stdout(io.StringIO()):  # nnU-Net prints a notice for every non-CUDA device
         predictor = ProgressPredictor(tile_step_size=step_size, use_gaussian=True, use_mirroring=tta,
@@ -230,7 +238,36 @@ def make_predictor(model_dir, device, tta=False, step_size=0.8, report=print, ch
                                     [checkpoint['network_weights']], dataset_json,
                                     checkpoint.get('trainer_name', 'SlimFormerPlusPlusAttention'),
                                     tuple(checkpoint.get('inference_allowed_mirroring_axes', (0, 1, 2))))
+    predictor.model_axes_ras = model_axes_ras(plans)
+    predictor.zscore_whole_image = zscore
     return predictor, dataset_json
+
+
+def zscore_statistics(image: np.ndarray, chunk: int = 16):
+    """Mean and standard deviation that nnU-Net's ``ZScoreNormalization`` uses for this image.
+
+    nnU-Net crops the image to the bounding box of its nonzero voxels and normalises
+    with the mean and (population) standard deviation of that box. Computed here on
+    the whole image before the body crop, so that cropping does not change the
+    normalisation. Accumulated in float64 slab by slab to avoid a float copy of the volume.
+    """
+    nonzero = image != 0
+    if not nonzero.any():
+        return 0.0, 1.0
+    box = []
+    for axis in range(image.ndim):
+        hit = np.flatnonzero(nonzero.any(axis=tuple(a for a in range(image.ndim) if a != axis)))
+        box.append(slice(int(hit[0]), int(hit[-1]) + 1))
+    del nonzero
+    region = image[tuple(box)]
+    total = total_sq = 0.0
+    for start in range(0, region.shape[0], chunk):
+        slab = region[start:start + chunk].astype(np.float64)
+        total += slab.sum()
+        total_sq += np.square(slab).sum()
+    n = region.size
+    mean = total / n
+    return float(mean), float(np.sqrt(max(total_sq / n - mean * mean, 0.0)))
 
 
 def body_box(image, spacing, min_extent_mm=(0.0, 0.0, 0.0)):
@@ -279,7 +316,8 @@ def segment(predictor, image_kji: np.ndarray, ijk_to_ras, crop_body=True, report
     With ``crop_body`` only the body's bounding box is segmented; outside it the
     labels are background.
     """
-    image, spacing, mapping = to_model_axes(image_kji, ijk_to_ras)
+    axes = getattr(predictor, 'model_axes_ras', None)
+    image, spacing, mapping = to_model_axes(image_kji, ijk_to_ras, model_axes_ras({}) if axes is None else axes)
     box = tuple(slice(0, s) for s in image.shape)
     if crop_body:
         box = body_box(image, spacing, patch_extent_mm(predictor))
@@ -287,9 +325,13 @@ def segment(predictor, image_kji: np.ndarray, ijk_to_ras, crop_body=True, report
             cropped = [s.stop - s.start for s in box]
             report(f'Body region: {cropped[::-1]} of {list(image.shape[::-1])} voxels '
                    f'({100 * np.prod(cropped) / np.prod(image.shape):.0f}% of the volume)')
+    data = np.ascontiguousarray(image[box])[None].astype(np.float32, copy=True)
+    if getattr(predictor, 'zscore_whole_image', False):
+        mean, std = zscore_statistics(image)
+        data -= np.float32(mean)
+        data /= np.float32(max(std, 1e-8))
     labels = np.zeros(image.shape, dtype=np.uint8)
-    labels[box] = predictor.predict_single_npy_array(np.ascontiguousarray(image[box])[None].astype(np.float32, copy=False),
-                                                     {'spacing': spacing}, None, None, False)
+    labels[box] = predictor.predict_single_npy_array(data, {'spacing': spacing}, None, None, False)
     return from_model_axes(labels, mapping)
 
 
