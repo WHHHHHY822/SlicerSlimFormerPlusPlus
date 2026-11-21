@@ -36,13 +36,13 @@ SlimFormer++ scores 85.40 / 83.34.
 
 ## Two modes, CPU only
 
-| Mode | Voxels | Time per scan | Dice / NSD (%) in the module |
+| Mode | Voxels | Time for the sample CT | Dice / NSD (%) in the module |
 | --- | --- | --- | --- |
-| **Standard** | 1.5 mm | ~3 min | 84.2 / 81.7 |
-| **Fast** | 3 mm | ~30 s | 78.2 / 75.6 |
+| **Standard** | 1.5 mm | ~1 min | 84.2 / 81.7 |
+| **Fast** | 3 mm | ~15 s | 78.2 / 75.6 |
 
-Time: laptop with an Apple M5 CPU (10 threads), in 3D Slicer, measured with
-the previous AMOS2022 models, which have the same network and voxel sizes. Dice / NSD: the
+Time: the Panoramix sample CT in 3D Slicer, on a laptop with an Apple M5 CPU
+(10 threads); scans that cover more of the body take longer. Dice / NSD: the
 same 743 scans with the module's own settings (no test-time augmentation).
 Fast mode is less accurate mostly on scans that show only part of the abdomen.
 
